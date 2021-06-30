@@ -41,6 +41,9 @@ func RecommendedDefaultHPAControllerConfiguration(obj *kubectrlmgrconfigv1alpha1
 	if obj.HorizontalPodAutoscalerSyncPeriod == zero {
 		obj.HorizontalPodAutoscalerSyncPeriod = metav1.Duration{Duration: 15 * time.Second}
 	}
+	if obj.HorizontalPodAutoscalerSyncConcurrency == 0 {
+		obj.HorizontalPodAutoscalerSyncConcurrency = 1
+	}
 	if obj.HorizontalPodAutoscalerUpscaleForbiddenWindow == zero {
 		obj.HorizontalPodAutoscalerUpscaleForbiddenWindow = metav1.Duration{Duration: 3 * time.Minute}
 	}

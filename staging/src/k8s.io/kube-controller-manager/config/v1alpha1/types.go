@@ -332,6 +332,9 @@ type HPAControllerConfiguration struct {
 	// HorizontalPodAutoscalerSyncPeriod is the period for syncing the number of
 	// pods in horizontal pod autoscaler.
 	HorizontalPodAutoscalerSyncPeriod metav1.Duration
+	//horizontalPodAutoscalerSyncConcurrency is the number of HPAs that will be allowed to sync concurrently.
+	//Larger number = more responsive HPA updates, but more CPU (and network) load.
+	HorizontalPodAutoscalerSyncConcurrency int32
 	// HorizontalPodAutoscalerUpscaleForbiddenWindow is a period after which next upscale allowed.
 	HorizontalPodAutoscalerUpscaleForbiddenWindow metav1.Duration
 	// HorizontalPodAutoscalerDowncaleStabilizationWindow is a period for which autoscaler will look

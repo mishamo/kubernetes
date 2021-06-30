@@ -256,6 +256,7 @@ func TestAddFlags(t *testing.T) {
 		},
 		HPAController: &HPAControllerOptions{
 			&poautosclerconfig.HPAControllerConfiguration{
+				HorizontalPodAutoscalerSyncConcurrency:				 1,
 				HorizontalPodAutoscalerSyncPeriod:                   metav1.Duration{Duration: 45 * time.Second},
 				HorizontalPodAutoscalerUpscaleForbiddenWindow:       metav1.Duration{Duration: 1 * time.Minute},
 				HorizontalPodAutoscalerDownscaleForbiddenWindow:     metav1.Duration{Duration: 2 * time.Minute},
