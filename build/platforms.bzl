@@ -18,11 +18,7 @@ load("@bazel_skylib//lib:types.bzl", "types")
 # KUBE_SERVER_PLATFORMS in hack/lib/golang.sh
 SERVER_PLATFORMS = {
     "linux": [
-        "amd64",
-        "arm",
-        "arm64",
-        "ppc64le",
-        "s390x",
+        "amd64"
     ],
 }
 
@@ -30,32 +26,12 @@ SERVER_PLATFORMS = {
 NODE_PLATFORMS = {
     "linux": [
         "amd64",
-        "arm",
-        "arm64",
-        "ppc64le",
-        "s390x",
-    ],
-    "windows": [
-        "amd64",
     ],
 }
 
 # KUBE_CLIENT_PLATFORMS in hack/lib/golang.sh
 CLIENT_PLATFORMS = {
     "linux": [
-        "386",
-        "amd64",
-        "arm",
-        "arm64",
-        "ppc64le",
-        "s390x",
-    ],
-    "darwin": [
-        "386",
-        "amd64",
-    ],
-    "windows": [
-        "386",
         "amd64",
     ],
 }
@@ -63,16 +39,6 @@ CLIENT_PLATFORMS = {
 # KUBE_TEST_PLATFORMS in hack/lib/golang.sh
 TEST_PLATFORMS = {
     "linux": [
-        "amd64",
-        "arm",
-        "arm64",
-        "s390x",
-        "ppc64le",
-    ],
-    "darwin": [
-        "amd64",
-    ],
-    "windows": [
         "amd64",
     ],
 }

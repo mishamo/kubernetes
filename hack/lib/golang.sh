@@ -21,47 +21,23 @@ readonly KUBE_GOPATH="${KUBE_OUTPUT}/go"
 # The server platform we are building on.
 readonly KUBE_SUPPORTED_SERVER_PLATFORMS=(
   linux/amd64
-  linux/arm
-  linux/arm64
-  linux/s390x
-  linux/ppc64le
 )
 
 # The node platforms we build for
 readonly KUBE_SUPPORTED_NODE_PLATFORMS=(
   linux/amd64
-  linux/arm
-  linux/arm64
-  linux/s390x
-  linux/ppc64le
-  windows/amd64
 )
 
 # If we update this we should also update the set of platforms whose standard
 # library is precompiled for in build/build-image/cross/Dockerfile
 readonly KUBE_SUPPORTED_CLIENT_PLATFORMS=(
   linux/amd64
-  linux/386
-  linux/arm
-  linux/arm64
-  linux/s390x
-  linux/ppc64le
-  darwin/amd64
-  darwin/386
-  windows/amd64
-  windows/386
 )
 
 # Which platforms we should compile test targets for.
 # Not all client platforms need these tests
 readonly KUBE_SUPPORTED_TEST_PLATFORMS=(
   linux/amd64
-  linux/arm
-  linux/arm64
-  linux/s390x
-  linux/ppc64le
-  darwin/amd64
-  windows/amd64
 )
 
 # The set of server targets that we are only building for Linux

@@ -19,6 +19,7 @@ package podautoscaler
 import (
 	"fmt"
 	"math"
+	"sync"
 	"time"
 
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
@@ -55,6 +56,8 @@ var (
 	scaleUpLimitFactor  = 2.0
 	scaleUpLimitMinimum = 4.0
 )
+
+var recommendationsLock sync.Mutex
 
 type timestampedRecommendation struct {
 	recommendation int32
@@ -183,7 +186,7 @@ func (a *HorizontalController) enqueueHPA(obj interface{}) {
 	// Requests are always added to queue with resyncPeriod delay.  If there's already
 	// request for the HPA in the queue then a new request is always dropped. Requests spend resync
 	// interval in queue so HPAs are processed every resync interval.
-	a.queue.AddRateLimited(key)
+	a.queue.Add(key)
 }
 
 func (a *HorizontalController) deleteHPA(obj interface{}) {
@@ -224,7 +227,7 @@ func (a *HorizontalController) processNextWorkItem() bool {
 	// removed from queue. If we didn't add request here then in this case one request would be dropped
 	// and HPA would processed after 2 x resyncPeriod.
 	if !deleted {
-		a.queue.AddRateLimited(key)
+		a.queue.Add(key)
 	}
 
 	return true
@@ -340,7 +343,7 @@ func (a *HorizontalController) reconcileKey(key string) (deleted bool, err error
 	hpa, err := a.hpaLister.HorizontalPodAutoscalers(namespace).Get(name)
 	if errors.IsNotFound(err) {
 		klog.Infof("Horizontal Pod Autoscaler %s has been deleted in %s", name, namespace)
-		delete(a.recommendations, key)
+		//delete(a.recommendations, key)
 		return true, nil
 	}
 
@@ -517,9 +520,11 @@ func (a *HorizontalController) computeStatusForExternalMetric(specReplicas, stat
 }
 
 func (a *HorizontalController) recordInitialRecommendation(currentReplicas int32, key string) {
-	if a.recommendations[key] == nil {
-		a.recommendations[key] = []timestampedRecommendation{{currentReplicas, time.Now()}}
-	}
+	//if a.recommendations[key] == nil {
+	//	recommendationsLock.Lock()
+	//	defer recommendationsLock.Unlock()
+	//	a.recommendations[key] = []timestampedRecommendation{{currentReplicas, time.Now()}}
+	//}
 }
 
 func (a *HorizontalController) reconcileAutoscaler(hpav1Shared *autoscalingv1.HorizontalPodAutoscaler, key string) error {
@@ -657,24 +662,27 @@ func (a *HorizontalController) reconcileAutoscaler(hpav1Shared *autoscalingv1.Ho
 // - replaces old recommendation with the newest recommendation,
 // - returns max of recommendations that are not older than downscaleStabilisationWindow.
 func (a *HorizontalController) stabilizeRecommendation(key string, prenormalizedDesiredReplicas int32) int32 {
-	maxRecommendation := prenormalizedDesiredReplicas
-	foundOldSample := false
-	oldSampleIndex := 0
-	cutoff := time.Now().Add(-a.downscaleStabilisationWindow)
-	for i, rec := range a.recommendations[key] {
-		if rec.timestamp.Before(cutoff) {
-			foundOldSample = true
-			oldSampleIndex = i
-		} else if rec.recommendation > maxRecommendation {
-			maxRecommendation = rec.recommendation
-		}
-	}
-	if foundOldSample {
-		a.recommendations[key][oldSampleIndex] = timestampedRecommendation{prenormalizedDesiredReplicas, time.Now()}
-	} else {
-		a.recommendations[key] = append(a.recommendations[key], timestampedRecommendation{prenormalizedDesiredReplicas, time.Now()})
-	}
-	return maxRecommendation
+	//maxRecommendation := prenormalizedDesiredReplicas
+	//foundOldSample := false
+	//oldSampleIndex := 0
+	//cutoff := time.Now().Add(-a.downscaleStabilisationWindow)
+	//recommendationsLock.Lock()
+	//defer recommendationsLock.Unlock()
+	//for i, rec := range a.recommendations[key] {
+	//	if rec.timestamp.Before(cutoff) {
+	//		foundOldSample = true
+	//		oldSampleIndex = i
+	//	} else if rec.recommendation > maxRecommendation {
+	//		maxRecommendation = rec.recommendation
+	//	}
+	//}
+	//if foundOldSample {
+	//	a.recommendations[key][oldSampleIndex] = timestampedRecommendation{prenormalizedDesiredReplicas, time.Now()}
+	//} else {
+	//	a.recommendations[key] = append(a.recommendations[key], timestampedRecommendation{prenormalizedDesiredReplicas, time.Now()})
+	//}
+	//return maxRecommendation
+	return 1
 }
 
 // normalizeDesiredReplicas takes the metrics desired replicas value and normalizes it based on the appropriate conditions (i.e. < maxReplicas, >
