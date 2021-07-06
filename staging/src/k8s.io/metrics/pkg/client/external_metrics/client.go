@@ -18,6 +18,8 @@ package external_metrics
 
 import (
 	"fmt"
+	"k8s.io/klog"
+	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -81,6 +83,7 @@ type namespacedMetrics struct {
 }
 
 func (m *namespacedMetrics) List(metricName string, metricSelector labels.Selector) (*v1beta1.ExternalMetricValueList, error) {
+	klog.Infof("Doing list for metric name %s in namespace %s with selector %s at %d", metricName, m.namespace, metricSelector.String(), time.Now().UnixNano())
 	res := &v1beta1.ExternalMetricValueList{}
 	err := m.client.client.Get().
 		Namespace(m.namespace).
@@ -91,6 +94,7 @@ func (m *namespacedMetrics) List(metricName string, metricSelector labels.Select
 		Do().
 		Into(res)
 
+	klog.Infof("Completed list for metric name %s in namespace %s with selector %s at %d", metricName, m.namespace, metricSelector.String(), time.Now().UnixNano())
 	if err != nil {
 		return nil, err
 	}

@@ -18,6 +18,7 @@ package podautoscaler
 
 import (
 	"fmt"
+	"k8s.io/klog"
 	"math"
 	"time"
 
@@ -341,6 +342,7 @@ func (c *ReplicaCalculator) GetExternalMetricReplicas(currentReplicas int32, tar
 // target metric value per pod (as a milli-value) for the external metric in the
 // given namespace, and the current replica count.
 func (c *ReplicaCalculator) GetExternalPerPodMetricReplicas(statusReplicas int32, targetUtilizationPerPod int64, metricName, namespace string, metricSelector *metav1.LabelSelector) (replicaCount int32, utilization int64, timestamp time.Time, err error) {
+	klog.Infof("GetExternalPerPodMetricReplicas for metricName %s in namespace %s at %d", metricName, namespace, time.Now().UnixNano())
 	metricLabelSelector, err := metav1.LabelSelectorAsSelector(metricSelector)
 	if err != nil {
 		return 0, 0, time.Time{}, err
@@ -361,6 +363,7 @@ func (c *ReplicaCalculator) GetExternalPerPodMetricReplicas(statusReplicas int32
 		replicaCount = int32(math.Ceil(float64(utilization) / float64(targetUtilizationPerPod)))
 	}
 	utilization = int64(math.Ceil(float64(utilization) / float64(statusReplicas)))
+	klog.Infof("GetExternalPerPodMetricReplicas completed for metricName %s in namespace %s at %d", metricName, namespace, time.Now().UnixNano())
 	return replicaCount, utilization, timestamp, nil
 }
 

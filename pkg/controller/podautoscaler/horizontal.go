@@ -18,14 +18,15 @@ package podautoscaler
 
 import (
 	"fmt"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"math"
+	runtime2 "runtime"
 	"sync"
 	"time"
 
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2beta2"
 	v1 "k8s.io/api/core/v1"
-	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -88,7 +89,7 @@ type HorizontalController struct {
 	podListerSynced cache.InformerSynced
 
 	// Controllers that need to be synced
-	queue workqueue.RateLimitingInterface
+	queue workqueue.Interface
 
 	// Latest unstabilized recommendations for each autoscaler.
 	recommendations map[string][]timestampedRecommendation
@@ -120,7 +121,7 @@ func NewHorizontalController(
 		scaleNamespacer:              scaleNamespacer,
 		hpaNamespacer:                hpaNamespacer,
 		downscaleStabilisationWindow: downscaleStabilisationWindow,
-		queue:                        workqueue.NewNamedRateLimitingQueue(NewDefaultHPARateLimiter(resyncPeriod), "horizontalpodautoscaler"),
+		queue:                        workqueue.NewNamed("horizontalpodautoscaler"),
 		mapper:                       mapper,
 		recommendations:              map[string][]timestampedRecommendation{},
 	}
@@ -163,8 +164,10 @@ func (a *HorizontalController) Run(workers int, stopCh <-chan struct{}) {
 		return
 	}
 
+
+	klog.Infof("Starting HPA controller with %d workers and procs %d", workers, runtime2.GOMAXPROCS(0))
 	for i := 0; i < workers; i++ {
-		go wait.Until(a.worker, time.Second, stopCh)
+		go wait.Until(a.worker, time.Millisecond, stopCh)
 	}
 
 	<-stopCh
@@ -197,7 +200,7 @@ func (a *HorizontalController) deleteHPA(obj interface{}) {
 	}
 
 	// TODO: could we leak if we fail to get the key?
-	a.queue.Forget(key)
+	a.queue.Done(key)
 }
 
 func (a *HorizontalController) worker() {
@@ -208,6 +211,7 @@ func (a *HorizontalController) worker() {
 
 func (a *HorizontalController) processNextWorkItem() bool {
 	key, quit := a.queue.Get()
+	klog.Infof("Start processing key %s at %d", key, time.Now().UnixNano())
 	if quit {
 		return false
 	}
@@ -230,6 +234,7 @@ func (a *HorizontalController) processNextWorkItem() bool {
 		a.queue.Add(key)
 	}
 
+	klog.Infof("End processing key %s at %d", key, time.Now().UnixNano())
 	return true
 }
 
@@ -238,6 +243,7 @@ func (a *HorizontalController) processNextWorkItem() bool {
 // all metrics computed.
 func (a *HorizontalController) computeReplicasForMetrics(hpa *autoscalingv2.HorizontalPodAutoscaler, scale *autoscalingv1.Scale,
 	metricSpecs []autoscalingv2.MetricSpec) (replicas int32, metric string, statuses []autoscalingv2.MetricStatus, timestamp time.Time, err error) {
+	key := hpa.Namespace + "/" + hpa.Name
 
 	if scale.Status.Selector == "" {
 		errMsg := "selector is required"
@@ -263,6 +269,7 @@ func (a *HorizontalController) computeReplicasForMetrics(hpa *autoscalingv2.Hori
 	var invalidMetricCondition autoscalingv2.HorizontalPodAutoscalerCondition
 
 	for i, metricSpec := range metricSpecs {
+		klog.Infof("Compute loop index %d for key %s at time %d", i, key, time.Now().UnixNano())
 		replicaCountProposal, metricNameProposal, timestampProposal, condition, err := a.computeReplicasForMetric(hpa, metricSpec, specReplicas, statusReplicas, selector, &statuses[i])
 
 		if err != nil {
@@ -335,6 +342,7 @@ func (a *HorizontalController) computeReplicasForMetric(hpa *autoscalingv2.Horiz
 }
 
 func (a *HorizontalController) reconcileKey(key string) (deleted bool, err error) {
+	klog.Infof("Reconcile key %s at %d", key, time.Now().UnixNano())
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
 		return true, err
@@ -520,18 +528,22 @@ func (a *HorizontalController) computeStatusForExternalMetric(specReplicas, stat
 }
 
 func (a *HorizontalController) recordInitialRecommendation(currentReplicas int32, key string) {
-	//if a.recommendations[key] == nil {
-	//	recommendationsLock.Lock()
-	//	defer recommendationsLock.Unlock()
-	//	a.recommendations[key] = []timestampedRecommendation{{currentReplicas, time.Now()}}
-	//}
+	if a.recommendations[key] == nil {
+		recommendationsLock.Lock()
+		defer recommendationsLock.Unlock()
+		a.recommendations[key] = []timestampedRecommendation{{currentReplicas, time.Now()}}
+	}
 }
 
 func (a *HorizontalController) reconcileAutoscaler(hpav1Shared *autoscalingv1.HorizontalPodAutoscaler, key string) error {
+	klog.Infof("Reconcile autoscaler %s at %d", key, time.Now().UnixNano())
 	// make a copy so that we never mutate the shared informer cache (conversion can mutate the object)
 	hpav1 := hpav1Shared.DeepCopy()
 	// then, convert to autoscaling/v2, which makes our lives easier when calculating metrics
 	hpaRaw, err := unsafeConvertToVersionVia(hpav1, autoscalingv2.SchemeGroupVersion)
+
+	klog.Infof("Unsafe convert for key %s completed at %d", key, time.Now().UnixNano())
+
 	if err != nil {
 		a.eventRecorder.Event(hpav1, v1.EventTypeWarning, "FailedConvertHPA", err.Error())
 		return fmt.Errorf("failed to convert the given HPA to %s: %v", autoscalingv2.SchemeGroupVersion.String(), err)
@@ -573,6 +585,8 @@ func (a *HorizontalController) reconcileAutoscaler(hpav1Shared *autoscalingv1.Ho
 	currentReplicas := scale.Spec.Replicas
 	a.recordInitialRecommendation(currentReplicas, key)
 
+	klog.Infof("Mappings done for key %s at %d", key, time.Now().UnixNano())
+
 	var (
 		metricStatuses        []autoscalingv2.MetricStatus
 		metricDesiredReplicas int32
@@ -606,7 +620,10 @@ func (a *HorizontalController) reconcileAutoscaler(hpav1Shared *autoscalingv1.Ho
 		desiredReplicas = minReplicas
 	} else {
 		var metricTimestamp time.Time
+
+		klog.Infof("Compute replicas for metrics with key %s at %d", key, time.Now().UnixNano())
 		metricDesiredReplicas, metricName, metricStatuses, metricTimestamp, err = a.computeReplicasForMetrics(hpa, scale, hpa.Spec.Metrics)
+		klog.Infof("Compute replicas for metrics completed for key %s at %d", key, time.Now().UnixNano())
 		if err != nil {
 			a.setCurrentReplicasInStatus(hpa, currentReplicas)
 			if err := a.updateStatusIfNeeded(hpaStatusOriginal, hpa); err != nil {
@@ -654,35 +671,39 @@ func (a *HorizontalController) reconcileAutoscaler(hpav1Shared *autoscalingv1.Ho
 		desiredReplicas = currentReplicas
 	}
 
+	klog.Infof("Updating status for key %s at %d", key, time.Now().UnixNano())
+
 	a.setStatus(hpa, currentReplicas, desiredReplicas, metricStatuses, rescale)
-	return a.updateStatusIfNeeded(hpaStatusOriginal, hpa)
+	e := a.updateStatusIfNeeded(hpaStatusOriginal, hpa)
+
+	klog.Infof("Reconcile autoscaler complete for key %s at %d", key, time.Now().UnixNano())
+	return e
 }
 
 // stabilizeRecommendation:
 // - replaces old recommendation with the newest recommendation,
 // - returns max of recommendations that are not older than downscaleStabilisationWindow.
 func (a *HorizontalController) stabilizeRecommendation(key string, prenormalizedDesiredReplicas int32) int32 {
-	//maxRecommendation := prenormalizedDesiredReplicas
-	//foundOldSample := false
-	//oldSampleIndex := 0
-	//cutoff := time.Now().Add(-a.downscaleStabilisationWindow)
-	//recommendationsLock.Lock()
-	//defer recommendationsLock.Unlock()
-	//for i, rec := range a.recommendations[key] {
-	//	if rec.timestamp.Before(cutoff) {
-	//		foundOldSample = true
-	//		oldSampleIndex = i
-	//	} else if rec.recommendation > maxRecommendation {
-	//		maxRecommendation = rec.recommendation
-	//	}
-	//}
-	//if foundOldSample {
-	//	a.recommendations[key][oldSampleIndex] = timestampedRecommendation{prenormalizedDesiredReplicas, time.Now()}
-	//} else {
-	//	a.recommendations[key] = append(a.recommendations[key], timestampedRecommendation{prenormalizedDesiredReplicas, time.Now()})
-	//}
-	//return maxRecommendation
-	return 1
+	maxRecommendation := prenormalizedDesiredReplicas
+	foundOldSample := false
+	oldSampleIndex := 0
+	cutoff := time.Now().Add(-a.downscaleStabilisationWindow)
+	recommendationsLock.Lock()
+	defer recommendationsLock.Unlock()
+	for i, rec := range a.recommendations[key] {
+		if rec.timestamp.Before(cutoff) {
+			foundOldSample = true
+			oldSampleIndex = i
+		} else if rec.recommendation > maxRecommendation {
+			maxRecommendation = rec.recommendation
+		}
+	}
+	if foundOldSample {
+		a.recommendations[key][oldSampleIndex] = timestampedRecommendation{prenormalizedDesiredReplicas, time.Now()}
+	} else {
+		a.recommendations[key] = append(a.recommendations[key], timestampedRecommendation{prenormalizedDesiredReplicas, time.Now()})
+	}
+	return maxRecommendation
 }
 
 // normalizeDesiredReplicas takes the metrics desired replicas value and normalizes it based on the appropriate conditions (i.e. < maxReplicas, >

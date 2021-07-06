@@ -170,6 +170,7 @@ type externalMetricsClient struct {
 // GetExternalMetric gets all the values of a given external metric
 // that match the specified selector.
 func (c *externalMetricsClient) GetExternalMetric(metricName, namespace string, selector labels.Selector) ([]int64, time.Time, error) {
+	klog.Infof("GetExternalMetric in client for metric name %s in namespace %s at %d", metricName, namespace, time.Now().UnixNano())
 	metrics, err := c.client.NamespacedMetrics(namespace).List(metricName, selector)
 	if err != nil {
 		return []int64{}, time.Time{}, fmt.Errorf("unable to fetch metrics from external metrics API: %v", err)
@@ -184,5 +185,6 @@ func (c *externalMetricsClient) GetExternalMetric(metricName, namespace string, 
 		res = append(res, m.Value.MilliValue())
 	}
 	timestamp := metrics.Items[0].Timestamp.Time
+	klog.Infof("GetExternalMetric completed in client for metric name %s in namespace %s at %d", metricName, namespace, time.Now().UnixNano())
 	return res, timestamp, nil
 }
